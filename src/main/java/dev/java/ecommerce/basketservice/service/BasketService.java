@@ -1,5 +1,6 @@
 package dev.java.ecommerce.basketservice.service;
 
+import dev.java.ecommerce.basketservice.exceptions.BusinessException;
 import dev.java.ecommerce.basketservice.request.PaymentRequest;
 import dev.java.ecommerce.basketservice.response.PlatziProductReponse;
 import dev.java.ecommerce.basketservice.request.BasketRequest;
@@ -28,19 +29,10 @@ public class BasketService {
     public Basket createBasket(BasketRequest basketRequest) {
         basketRepository.findByClientAndStatus(basketRequest.clientId(), Status.OPEN)
                 .ifPresent(basket -> {
-            throw new IllegalArgumentException("Basket already exists");
+            throw new BusinessException("Basket already exists");
         });
 
-        List<Product> products = new ArrayList<>();
-        basketRequest.products().forEach(product -> {
-            PlatziProductReponse platziProductReponse = productService.getProduct(product.getId());
-            products.add(Product.builder()
-                .id(product.getId())
-                .price(platziProductReponse.price())
-                .title(platziProductReponse.title())
-                .quantity(product.getQuantity())
-                .build());
-        });
+        List<Product> products = getProducts(basketRequest);
 
         Basket basket = Basket.builder()
                 .client(basketRequest.clientId())
@@ -55,6 +47,15 @@ public class BasketService {
     public Basket updateBasket(String id, BasketRequest request) {
         Basket basket = getBasketById(id).orElseThrow(() -> new IllegalArgumentException("Basket not found"));
 
+        List<Product> products = getProducts(request);
+
+        basket.setProducts(products);
+
+        basket.calculateTotalPrice();
+        return basketRepository.save(basket);
+    }
+
+    private List<Product> getProducts(BasketRequest request) {
         List<Product> products = new ArrayList<>();
         request.products().forEach(product -> {
             PlatziProductReponse platziProductReponse = productService.getProduct(product.getId());
@@ -65,11 +66,7 @@ public class BasketService {
                     .quantity(product.getQuantity())
                     .build());
         });
-
-        basket.setProducts(products);
-
-        basket.calculateTotalPrice();
-        return basketRepository.save(basket);
+        return products;
     }
 
     public Basket payBasket(String id, PaymentRequest request) {
@@ -80,5 +77,9 @@ public class BasketService {
                     return basketRepository.save(basket); // O map aceita esse return
                 })
                 .orElseThrow(() -> new IllegalArgumentException("Basket not found"));
+    }
+
+    public void deleteBasket(String id) {
+        basketRepository.deleteById(id);
     }
 }
