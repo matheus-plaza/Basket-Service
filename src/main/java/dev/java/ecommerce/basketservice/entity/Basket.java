@@ -27,6 +27,9 @@ public class Basket {
 
     private Status status;
 
+    @JsonInclude(JsonInclude.Include.NON_NULL)
+    private PaymentMethod paymentMethod;
+
     public void calculateTotalPrice() {
         this.totalPrice = products.stream().map(product -> product.getPrice().multiply(BigDecimal.valueOf(product.getQuantity()))).reduce(BigDecimal.ZERO, BigDecimal::add);
     }

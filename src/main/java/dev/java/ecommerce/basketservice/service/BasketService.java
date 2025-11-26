@@ -1,5 +1,6 @@
 package dev.java.ecommerce.basketservice.service;
 
+import dev.java.ecommerce.basketservice.request.PaymentRequest;
 import dev.java.ecommerce.basketservice.response.PlatziProductReponse;
 import dev.java.ecommerce.basketservice.request.BasketRequest;
 import dev.java.ecommerce.basketservice.entity.Basket;
@@ -25,13 +26,13 @@ public class BasketService {
     }
 
     public Basket createBasket(BasketRequest basketRequest) {
-        basketRepository.findByClientAndStatus(basketRequest.getClientId(), Status.OPEN)
+        basketRepository.findByClientAndStatus(basketRequest.clientId(), Status.OPEN)
                 .ifPresent(basket -> {
             throw new IllegalArgumentException("Basket already exists");
         });
 
         List<Product> products = new ArrayList<>();
-        basketRequest.getProducts().forEach(product -> {
+        basketRequest.products().forEach(product -> {
             PlatziProductReponse platziProductReponse = productService.getProduct(product.getId());
             products.add(Product.builder()
                 .id(product.getId())
@@ -42,12 +43,42 @@ public class BasketService {
         });
 
         Basket basket = Basket.builder()
-                .client(basketRequest.getClientId())
+                .client(basketRequest.clientId())
                 .status(Status.OPEN)
                 .products(products)
                 .build();
 
         basket.calculateTotalPrice();
         return basketRepository.save(basket);
+    }
+
+    public Basket updateBasket(String id, BasketRequest request) {
+        Basket basket = getBasketById(id).orElseThrow(() -> new IllegalArgumentException("Basket not found"));
+
+        List<Product> products = new ArrayList<>();
+        request.products().forEach(product -> {
+            PlatziProductReponse platziProductReponse = productService.getProduct(product.getId());
+            products.add(Product.builder()
+                    .id(platziProductReponse.id())
+                    .title(platziProductReponse.title())
+                    .price(platziProductReponse.price())
+                    .quantity(product.getQuantity())
+                    .build());
+        });
+
+        basket.setProducts(products);
+
+        basket.calculateTotalPrice();
+        return basketRepository.save(basket);
+    }
+
+    public Basket payBasket(String id, PaymentRequest request) {
+        return getBasketById(id)
+                .map(basket -> {
+                    basket.setPaymentMethod(request.paymentMethod());
+                    basket.setStatus(Status.SOLD);
+                    return basketRepository.save(basket); // O map aceita esse return
+                })
+                .orElseThrow(() -> new IllegalArgumentException("Basket not found"));
     }
 }
